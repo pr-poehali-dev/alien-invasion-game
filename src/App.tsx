@@ -18,7 +18,9 @@ const App = () => (
 
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/space-game" element={React.lazy(() => import("./pages/SpaceGame"))} />
+
+          <Route path="/space-game" element={<React.lazy(() => import("./pages/SpaceGame"))} />
+
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

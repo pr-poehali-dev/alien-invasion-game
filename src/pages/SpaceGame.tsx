@@ -3,25 +3,27 @@ import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
 
-interface Alien {
+interface Clown {
   id: number;
   x: number;
   y: number;
   speed: number;
+  value: number;
 }
 
-interface Laser {
+interface Diamond {
   id: number;
   x: number;
   y: number;
+  collected: boolean;
 }
 
 const SpaceGame = () => {
   const [gameStarted, setGameStarted] = useState(false);
   const [score, setScore] = useState(0);
   const [player, setPlayer] = useState({ x: 50 });
-  const [aliens, setAliens] = useState<Alien[]>([]);
-  const [lasers, setLasers] = useState<Laser[]>([]);
+  const [clowns, setClowns] = useState<Clown[]>([]);
+  const [diamonds, setDiamonds] = useState<Diamond[]>([]);
   const [gameOver, setGameOver] = useState(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   
@@ -30,8 +32,8 @@ const SpaceGame = () => {
     setGameStarted(true);
     setScore(0);
     setPlayer({ x: 50 });
-    setAliens([]);
-    setLasers([]);
+    setClowns([]);
+    setDiamonds([]);
     setGameOver(false);
   };
 
@@ -47,34 +49,44 @@ const SpaceGame = () => {
     setPlayer({ x: Math.max(5, Math.min(95, x)) });
   };
 
-  // Стрельба
-  const shoot = () => {
+  // Создание алмаза
+  const createDiamond = () => {
     if (!gameStarted || gameOver) return;
     
-    const newLaser = {
+    const newDiamond = {
       id: Date.now(),
-      x: player.x,
-      y: 90
+      x: Math.random() * 90 + 5,
+      y: 0,
+      collected: false
     };
     
-    setLasers(prev => [...prev, newLaser]);
+    setDiamonds(prev => [...prev, newDiamond]);
   };
 
-  // Создание инопланетян
+  // Создание клоунов
   useEffect(() => {
     if (!gameStarted || gameOver) return;
     
     const interval = setInterval(() => {
-      const newAlien = {
+      const newClown = {
         id: Date.now(),
         x: Math.random() * 90 + 5,
         y: 0,
-        speed: Math.random() * 0.3 + 0.2
+        speed: Math.random() * 0.2 + 0.1,
+        value: Math.floor(Math.random() * 3) + 1
       };
       
-      setAliens(prev => [...prev, newAlien]);
+      setClowns(prev => [...prev, newClown]);
     }, 2000);
     
+    return () => clearInterval(interval);
+  }, [gameStarted, gameOver]);
+
+  // Создание алмазов
+  useEffect(() => {
+    if (!gameStarted || gameOver) return;
+    
+    const interval = setInterval(createDiamond, 3000);
     return () => clearInterval(interval);
   }, [gameStarted, gameOver]);
 
@@ -83,70 +95,87 @@ const SpaceGame = () => {
     if (!gameStarted || gameOver) return;
     
     const gameLoop = setInterval(() => {
-      // Движение лазеров
-      setLasers(prev => 
+      // Движение алмазов
+      setDiamonds(prev => 
         prev
-          .map(laser => ({ ...laser, y: laser.y - 1 }))
-          .filter(laser => laser.y > 0)
+          .map(diamond => ({ ...diamond, y: diamond.y + 0.5 }))
+          .filter(diamond => diamond.y < 100 && !diamond.collected)
       );
       
-      // Движение инопланетян
-      setAliens(prev => {
+      // Движение клоунов
+      setClowns(prev => {
         const updated = prev
-          .map(alien => ({ ...alien, y: alien.y + alien.speed }))
-          .filter(alien => alien.y < 100);
+          .map(clown => ({ ...clown, y: clown.y + clown.speed }))
+          .filter(clown => clown.y < 100);
           
-        // Проверка на проигрыш (инопланетянин достиг низа)
-        if (updated.some(alien => alien.y > 90)) {
+        // Проверка на проигрыш (время вышло)
+        if (updated.length > 20) {
           setGameOver(true);
         }
         
         return updated;
       });
       
-      // Проверка столкновений
-      setAliens(prev => {
-        const updatedAliens = [...prev];
-        const updatedLasers = [...lasers];
+      // Проверка сбора алмазов
+      setDiamonds(prev => {
+        const updatedDiamonds = [...prev];
+        let collected = false;
         
-        for (let i = updatedAliens.length - 1; i >= 0; i--) {
-          for (let j = updatedLasers.length - 1; j >= 0; j--) {
-            if (
-              Math.abs(updatedAliens[i].x - updatedLasers[j].x) < 5 &&
-              Math.abs(updatedAliens[i].y - updatedLasers[j].y) < 3
-            ) {
-              setScore(s => s + 10);
-              updatedAliens.splice(i, 1);
-              updatedLasers.splice(j, 1);
-              break;
+        for (let i = updatedDiamonds.length - 1; i >= 0; i--) {
+          if (
+            Math.abs(updatedDiamonds[i].x - player.x) < 8 &&
+            updatedDiamonds[i].y > 85 &&
+            !updatedDiamonds[i].collected
+          ) {
+            setScore(s => s + 10);
+            updatedDiamonds[i].collected = true;
+            collected = true;
+            
+            // Сделаем клоунов радостными, когда собираем алмаз
+            if (collected) {
+              setClowns(prevClowns => 
+                prevClowns.map(clown => ({
+                  ...clown,
+                  happy: true
+                }))
+              );
+              
+              // Вернем клоунов в нормальное состояние через секунду
+              setTimeout(() => {
+                setClowns(prevClowns => 
+                  prevClowns.map(clown => ({
+                    ...clown,
+                    happy: false
+                  }))
+                );
+              }, 1000);
             }
           }
         }
         
-        setLasers(updatedLasers);
-        return updatedAliens;
+        return updatedDiamonds.filter(d => !d.collected);
       });
     }, 50);
     
     return () => clearInterval(gameLoop);
-  }, [gameStarted, gameOver, lasers]);
+  }, [gameStarted, gameOver, player.x]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
-      <h1 className="text-4xl font-bold mb-4 text-center">Космическая Защита</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-purple-900 to-indigo-900 text-white">
+      <h1 className="text-4xl font-bold mb-4 text-center">Клоуны и Алмазы</h1>
       
       {!gameStarted ? (
         <div className="text-center">
-          <p className="text-xl mb-6">Защитите Землю от инопланетных захватчиков!</p>
-          <Button onClick={startGame} className="bg-blue-600 hover:bg-blue-700">
-            <Icon name="Rocket" />
+          <p className="text-xl mb-6">Собирайте алмазы с помощью добрых клоунов!</p>
+          <Button onClick={startGame} className="bg-pink-600 hover:bg-pink-700">
+            <Icon name="Gem" fallback="Diamond" className="mr-2" />
             Начать игру
           </Button>
         </div>
       ) : (
         <>
           <div className="mb-4 flex justify-between w-full max-w-lg px-4">
-            <div className="font-bold">Очки: {score}</div>
+            <div className="font-bold">Алмазы: {score}</div>
             <Button variant="outline" onClick={startGame} size="sm">
               Сбросить
             </Button>
@@ -154,49 +183,55 @@ const SpaceGame = () => {
           
           <div 
             ref={gameAreaRef}
-            className="w-full max-w-lg h-[500px] bg-black relative border border-blue-500 overflow-hidden"
-            onClick={shoot}
+            className="w-full max-w-lg h-[500px] bg-gradient-to-b from-indigo-800 to-purple-800 relative border border-pink-500 overflow-hidden rounded-lg"
             onMouseMove={movePlayer}
           >
             {gameOver ? (
               <div className="absolute inset-0 flex items-center justify-center flex-col bg-black bg-opacity-70">
                 <div className="text-2xl font-bold mb-4">Игра окончена!</div>
-                <div className="text-xl mb-6">Ваш счет: {score}</div>
-                <Button onClick={startGame}>Играть снова</Button>
+                <div className="text-xl mb-6">Собрано алмазов: {score}</div>
+                <Button onClick={startGame} className="bg-pink-600 hover:bg-pink-700">Играть снова</Button>
               </div>
             ) : null}
             
-            {/* Корабль игрока */}
+            {/* Корзинка игрока */}
             <div 
-              className="absolute bottom-2 w-10 h-10 transform -translate-x-1/2"
+              className="absolute bottom-2 w-12 h-12 transform -translate-x-1/2"
               style={{ left: `${player.x}%` }}
             >
-              <div className="w-0 h-0 border-l-[10px] border-r-[10px] border-b-[20px] mx-auto border-l-transparent border-r-transparent border-b-blue-500"></div>
+              <div className="w-12 h-8 border-2 border-yellow-400 rounded-b-md bg-yellow-300 bg-opacity-50"></div>
             </div>
             
-            {/* Лазеры */}
-            {lasers.map(laser => (
+            {/* Алмазы */}
+            {diamonds.map(diamond => (
               <div
-                key={laser.id}
-                className="absolute w-1 h-4 bg-red-500"
-                style={{ left: `${laser.x}%`, bottom: `${100 - laser.y}%` }}
-              />
+                key={diamond.id}
+                className="absolute w-6 h-6 text-blue-400"
+                style={{ left: `${diamond.x}%`, top: `${diamond.y}%` }}
+              >
+                <div className="animate-pulse">💎</div>
+              </div>
             ))}
             
-            {/* Инопланетяне */}
-            {aliens.map(alien => (
+            {/* Клоуны */}
+            {clowns.map(clown => (
               <div
-                key={alien.id}
-                className="absolute w-8 h-8 text-green-500"
-                style={{ left: `${alien.x}%`, top: `${alien.y}%` }}
+                key={clown.id}
+                className={`absolute w-10 h-10 ${clown.happy ? 'animate-bounce' : 'animate-pulse'}`}
+                style={{ left: `${clown.x}%`, top: `${clown.y}%` }}
               >
-                <div className="animate-pulse">👾</div>
+                <div>🤡</div>
+                {clown.value > 1 && (
+                  <span className="absolute -top-2 -right-2 bg-pink-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    {clown.value}
+                  </span>
+                )}
               </div>
             ))}
           </div>
           
-          <div className="mt-4 text-sm text-gray-400">
-            Нажмите на игровое поле для стрельбы. Перемещайте мышь для управления кораблем.
+          <div className="mt-4 text-sm text-gray-300">
+            Перемещайте мышь для управления корзинкой. Ловите падающие алмазы!
           </div>
         </>
       )}

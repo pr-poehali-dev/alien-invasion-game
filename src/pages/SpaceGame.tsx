@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import Icon from "@/components/ui/icon";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Clown {
   id: number;
@@ -9,6 +10,7 @@ interface Clown {
   y: number;
   speed: number;
   value: number;
+  happy?: boolean;
 }
 
 interface Diamond {
@@ -26,6 +28,7 @@ const SpaceGame = () => {
   const [diamonds, setDiamonds] = useState<Diamond[]>([]);
   const [gameOver, setGameOver] = useState(false);
   const gameAreaRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   
   // Инициализация игры
   const startGame = () => {
@@ -38,14 +41,24 @@ const SpaceGame = () => {
   };
 
   // Перемещение игрока
-  const movePlayer = (e: React.MouseEvent<HTMLDivElement>) => {
+  const movePlayer = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!gameStarted || gameOver) return;
     
     const gameArea = gameAreaRef.current;
     if (!gameArea) return;
     
     const rect = gameArea.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    let clientX;
+    
+    if ('touches' in e) {
+      // Сенсорное событие
+      clientX = e.touches[0].clientX;
+    } else {
+      // Событие мыши
+      clientX = e.clientX;
+    }
+    
+    const x = ((clientX - rect.left) / rect.width) * 100;
     setPlayer({ x: Math.max(5, Math.min(95, x)) });
   };
 
@@ -160,21 +173,56 @@ const SpaceGame = () => {
     return () => clearInterval(gameLoop);
   }, [gameStarted, gameOver, player.x]);
 
+  // Эффект для блокировки прокрутки страницы на мобильных устройствах
+  useEffect(() => {
+    if (gameStarted && isMobile) {
+      document.body.style.overflow = 'hidden';
+      
+      // Установка высоты и ширины экрана для игрового поля
+      if (gameAreaRef.current) {
+        const gameArea = gameAreaRef.current;
+        
+        // Включаем полноэкранный режим на мобильных устройствах
+        if (document.documentElement.requestFullscreen && isMobile) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.log("Ошибка перехода в полноэкранный режим:", err);
+          });
+        }
+      }
+      
+      return () => {
+        document.body.style.overflow = '';
+        
+        // Выход из полноэкранного режима при завершении игры
+        if (document.fullscreenElement && document.exitFullscreen) {
+          document.exitFullscreen().catch(err => {
+            console.log("Ошибка выхода из полноэкранного режима:", err);
+          });
+        }
+      };
+    }
+  }, [gameStarted, isMobile]);
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-purple-900 to-indigo-900 text-white">
-      <h1 className="text-4xl font-bold mb-4 text-center">Клоуны и Алмазы</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-purple-900 to-indigo-900 text-white landscape:h-screen landscape:overflow-hidden">
+      <h1 className="text-4xl font-bold mb-4 text-center landscape:text-2xl landscape:mb-1">Клоуны и Алмазы</h1>
       
       {!gameStarted ? (
         <div className="text-center">
-          <p className="text-xl mb-6">Собирайте алмазы с помощью добрых клоунов!</p>
+          <p className="text-xl mb-6 landscape:text-lg landscape:mb-2">Собирайте алмазы с помощью добрых клоунов!</p>
           <Button onClick={startGame} className="bg-pink-600 hover:bg-pink-700">
             <Icon name="Gem" fallback="Diamond" className="mr-2" />
             Начать игру
           </Button>
+          {isMobile && (
+            <p className="mt-4 text-sm text-gray-300">
+              Рекомендуется играть в горизонтальном режиме
+            </p>
+          )}
         </div>
       ) : (
         <>
-          <div className="mb-4 flex justify-between w-full max-w-lg px-4">
+          <div className="mb-4 flex justify-between w-full max-w-lg px-4 landscape:mb-1">
             <div className="font-bold">Алмазы: {score}</div>
             <Button variant="outline" onClick={startGame} size="sm">
               Сбросить
@@ -183,8 +231,9 @@ const SpaceGame = () => {
           
           <div 
             ref={gameAreaRef}
-            className="w-full max-w-lg h-[500px] bg-gradient-to-b from-indigo-800 to-purple-800 relative border border-pink-500 overflow-hidden rounded-lg"
+            className="w-full max-w-lg h-[500px] bg-gradient-to-b from-indigo-800 to-purple-800 relative border border-pink-500 overflow-hidden rounded-lg landscape:h-[calc(100vh-100px)]"
             onMouseMove={movePlayer}
+            onTouchMove={movePlayer}
           >
             {gameOver ? (
               <div className="absolute inset-0 flex items-center justify-center flex-col bg-black bg-opacity-70">
@@ -230,8 +279,11 @@ const SpaceGame = () => {
             ))}
           </div>
           
-          <div className="mt-4 text-sm text-gray-300">
-            Перемещайте мышь для управления корзинкой. Ловите падающие алмазы!
+          <div className="mt-4 text-sm text-gray-300 landscape:mt-1">
+            {isMobile ? 
+              "Перемещайте палец для управления корзинкой. Ловите падающие алмазы!" :
+              "Перемещайте мышь для управления корзинкой. Ловите падающие алмазы!"
+            }
           </div>
         </>
       )}
